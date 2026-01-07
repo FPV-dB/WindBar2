@@ -2,15 +2,8 @@
 //  WindUnit.swift
 //  WindBar2
 //
-//  Created by d on 8/1/2026.
-//
-
-
-//
-//  WindUnit.swift
-//  WindBar2
-//
 //  Created by FPV-dB
+//  OPTIMIZED VERSION - Reduced resource usage
 //
 
 import Combine
@@ -155,7 +148,8 @@ final class WeatherManager: NSObject, ObservableObject {
 
     @Published var windSpeedDisplayed: String?
 
-    @Published var refreshIntervalMinutes: Int = 15 {
+    // OPTIMIZED: Default to 30 minutes instead of 15
+    @Published var refreshIntervalMinutes: Int = 30 {
         didSet {
             if refreshIntervalMinutes < 5 { refreshIntervalMinutes = 5 }
             scheduleAutoRefresh()
@@ -178,6 +172,10 @@ final class WeatherManager: NSObject, ObservableObject {
     @Published var alertState: WindAlertState = .disabled
     
     private var previousAlertState: WindAlertState = .disabled
+
+    // OPTIMIZATION: Cache last API response to avoid redundant requests
+    private var cachedResponse: OpenMeteoResponse?
+    private var lastRequestKey: String?
 
     private let locationManager = CLLocationManager()
     private let urlSession = URLSession(configuration: .default)
@@ -304,17 +302,33 @@ final class WeatherManager: NSObject, ObservableObject {
 
             guard let finalLat = lat, let finalLon = lon else { return }
 
+            // OPTIMIZATION: Create cache key to check if we've already fetched this
+            let requestKey = "\(finalLat),\(finalLon),\(windUnit.rawValue)"
+            
+            // Check cache - if same location and settings, use cached data
+            if requestKey == lastRequestKey,
+               let cached = cachedResponse,
+               let lastUpdate = lastUpdated,
+               Date().timeIntervalSince(lastUpdate) < 300 { // 5 min cache
+                print("⚠️ DEV DEBUG: Using cached response for \(requestKey)")
+                apply(openMeteo: cached)
+                return
+            }
+
+            // OPTIMIZED: Fetch only 6 hours instead of full day (forecast_hours parameter)
             var comps = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
             comps.queryItems = [
                 URLQueryItem(name: "latitude", value: "\(finalLat)"),
                 URLQueryItem(name: "longitude", value: "\(finalLon)"),
                 URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure"),
                 URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index"),
-                URLQueryItem(name: "forecast_days", value: "1"),
+                URLQueryItem(name: "forecast_hours", value: "6"),  // OPTIMIZED: Only 6 hours
                 URLQueryItem(name: "timezone", value: "auto"),
                 URLQueryItem(name: "windspeed_unit", value: "kmh")
             ]
 
+            print("⚠️ DEV DEBUG: Fetching weather for \(requestKey)")
+            
             let (data, response) = try await urlSession.data(from: comps.url!)
 
             guard let http = response as? HTTPURLResponse,
@@ -325,10 +339,16 @@ final class WeatherManager: NSObject, ObservableObject {
             }
 
             let decoded = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
+            
+            // OPTIMIZATION: Cache the response
+            cachedResponse = decoded
+            lastRequestKey = requestKey
+            
             apply(openMeteo: decoded)
 
         } catch {
             errorMessage = "Failed: \(error.localizedDescription)"
+            print("⚠️ DEV DEBUG: API Error: \(error)")
         }
     }
 
@@ -372,6 +392,7 @@ final class WeatherManager: NSObject, ObservableObject {
     private func updateMenuBarSpeed() {
         guard let speedKmh = windSpeedKmh else {
             windSpeedDisplayed = "—"
+            print("⚠️ DEV DEBUG: No wind speed data")
             return
         }
         
@@ -402,6 +423,7 @@ final class WeatherManager: NSObject, ObservableObject {
         }
         
         windSpeedDisplayed = displayText
+        print("⚠️ DEV DEBUG: Menu bar updated: \(displayText)")
     }
     
     private func getWindDirectionArrow() -> String {
@@ -461,8 +483,8 @@ final class WeatherManager: NSObject, ObservableObject {
             newState = .tooStrong
         }
 
-        let transitionedToSafe = newState == .safe && 
-                                (previousAlertState == .tooStrong || 
+        let transitionedToSafe = newState == .safe &&
+                                (previousAlertState == .tooStrong ||
                                  previousAlertState == .unknown)
 
         previousAlertState = alertState
@@ -470,6 +492,7 @@ final class WeatherManager: NSObject, ObservableObject {
 
         if transitionedToSafe {
             playAlertSound()
+            print("⚠️ DEV DEBUG: Wind alert - conditions now safe")
         }
     }
 
@@ -484,6 +507,8 @@ final class WeatherManager: NSObject, ObservableObject {
             "https://geocoding-api.open-meteo.com/v1/search?name=\(encoded)&count=1"
         )!
 
+        print("⚠️ DEV DEBUG: Geocoding: \(name)")
+        
         let (data, _) = try await urlSession.data(from: url)
         let decoded = try JSONDecoder().decode(GeoResponse.self, from: data)
 
