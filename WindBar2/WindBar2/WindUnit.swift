@@ -95,6 +95,7 @@ enum WindAlertState {
 
 @MainActor
 final class WeatherManager: NSObject, ObservableObject {
+    private static let forecastHourCount = 24
     
     private enum DefaultsKeys {
         static let latitude = "lastLatitude"
@@ -262,7 +263,7 @@ final class WeatherManager: NSObject, ObservableObject {
         pressureHPa = 1013
         lastUpdated = Date()
 
-        hourlyForecast = (0..<6).map { i in
+        hourlyForecast = (0..<Self.forecastHourCount).map { i in
             HourlyEntry(
                 label: "\(String(format: "%02d", (Calendar.current.component(.hour, from: .now) + i) % 24)):00",
                 tempC: 23 + Double(i),
@@ -315,14 +316,13 @@ final class WeatherManager: NSObject, ObservableObject {
                 return
             }
 
-            // OPTIMIZED: Fetch only 6 hours instead of full day (forecast_hours parameter)
             var comps = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
             comps.queryItems = [
                 URLQueryItem(name: "latitude", value: "\(finalLat)"),
                 URLQueryItem(name: "longitude", value: "\(finalLon)"),
                 URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure"),
                 URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index"),
-                URLQueryItem(name: "forecast_hours", value: "6"),  // OPTIMIZED: Only 6 hours
+                URLQueryItem(name: "forecast_hours", value: "\(Self.forecastHourCount)"),
                 URLQueryItem(name: "timezone", value: "auto"),
                 URLQueryItem(name: "windspeed_unit", value: "kmh")
             ]
@@ -362,7 +362,7 @@ final class WeatherManager: NSObject, ObservableObject {
         lastUpdated       = Date()
 
         if let h = openMeteo.hourly {
-            let count = min(6, h.time.count)
+            let count = min(Self.forecastHourCount, h.time.count)
 
             hourlyForecast = (0..<count).map { i -> HourlyEntry in
                 let raw = h.time[i]

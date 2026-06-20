@@ -25,7 +25,8 @@ struct WindBarView: View {
     @State private var showPopularPilots = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
             
             HStack {
                 Spacer()
@@ -261,31 +262,33 @@ struct WindBarView: View {
             // HOURLY FORECAST
             if !manager.hourlyForecast.isEmpty {
                 Divider().padding(.vertical, 4)
-                Text("Next hours")
+                Text("Next 24 hours")
                     .font(.headline)
 
-                ForEach(manager.hourlyForecast) { hour in
-                    HStack {
-                        Image(systemName: "clock")
-                        Text(hour.label)
-                            .frame(width: 50, alignment: .leading)
+                LazyVStack(spacing: 8) {
+                    ForEach(manager.hourlyForecast) { hour in
+                        HStack {
+                            Image(systemName: "clock")
+                            Text(hour.label)
+                                .frame(width: 50, alignment: .leading)
 
-                        Spacer()
+                            Spacer()
 
-                        if let wsKmh = hour.windSpeed {
-                            HStack(spacing: 4) {
-                                Image(systemName: "wind")
-                                Text("\(Int(convertedWindSpeed(wsKmh)))\(unitSuffix)")
-                                
-                                if manager.alertsEnabled && wsKmh <= manager.maxWindSpeed {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption2)
+                            if let wsKmh = hour.windSpeed {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "wind")
+                                    Text("\(Int(convertedWindSpeed(wsKmh)))\(unitSuffix)")
+
+                                    if manager.alertsEnabled && wsKmh <= manager.maxWindSpeed {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                            .font(.caption2)
+                                    }
                                 }
                             }
                         }
+                        .font(.caption)
                     }
-                    .font(.caption)
                 }
             }
 
@@ -327,9 +330,10 @@ struct WindBarView: View {
                 }
             }
             
-            Spacer(minLength: 2)
+                Spacer(minLength: 2)
+            }
+            .padding(12)
         }
-        .padding(12)
         .frame(width: manager.layout.width)
     }
 
