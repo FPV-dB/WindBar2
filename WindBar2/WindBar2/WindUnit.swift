@@ -99,17 +99,33 @@ final class WeatherManager: NSObject, ObservableObject {
     let droneWindStatus = DroneWindStatusManager()
     
     private enum DefaultsKeys {
+        static let locationMode = "lastLocationMode"
+        static let cityName = "lastCityName"
         static let latitude = "lastLatitude"
         static let longitude = "lastLongitude"
+        static let selectedRegion = "lastSelectedRegion"
+        static let selectedCountry = "lastSelectedCountry"
+        static let selectedCity = "lastSelectedCity"
     }
 
     @Published var useDummyData: Bool = false { didSet { refresh() } }
     @Published var windUnit: WindUnit = .kmh { didSet { refresh() } }
     @Published var temperatureUnit: TemperatureUnit = .celsius
-    @Published var locationMode: LocationMode = .cityName { didSet { refresh() } }
+    @Published var locationMode: LocationMode = .cityName {
+        didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(locationMode.rawValue, forKey: DefaultsKeys.locationMode)
+            refresh()
+        }
+    }
     @Published var layout: LayoutWidth = .compact
 
-    @Published var cityName: String = "Adelaide"
+    @Published var cityName: String = "Adelaide" {
+        didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(cityName, forKey: DefaultsKeys.cityName)
+        }
+    }
 
     @Published var latitude: Double? {
         didSet { persistCoordinatesIfNeeded() }
@@ -120,6 +136,8 @@ final class WeatherManager: NSObject, ObservableObject {
 
     @Published var selectedRegion: String = "Oceania" {
         didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(selectedRegion, forKey: DefaultsKeys.selectedRegion)
             if let first = WorldCities[selectedRegion]?.keys.sorted().first {
                 selectedCountry = first
             }
@@ -128,6 +146,8 @@ final class WeatherManager: NSObject, ObservableObject {
 
     @Published var selectedCountry: String = "Australia" {
         didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(selectedCountry, forKey: DefaultsKeys.selectedCountry)
             if let cities = WorldCities[selectedRegion]?[selectedCountry]?.cities,
                let firstCity = cities.first {
                 selectedCity = firstCity
@@ -135,7 +155,12 @@ final class WeatherManager: NSObject, ObservableObject {
         }
     }
 
-    @Published var selectedCity: String = "Adelaide"
+    @Published var selectedCity: String = "Adelaide" {
+        didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(selectedCity, forKey: DefaultsKeys.selectedCity)
+        }
+    }
 
     @Published var windSpeedKmh: Double?
     @Published var windGustKmh: Double?
@@ -183,19 +208,44 @@ final class WeatherManager: NSObject, ObservableObject {
     private let urlSession = URLSession(configuration: .default)
     private var refreshTimer: AnyCancellable?
     private var cityNameCancellable: AnyCancellable?
+    private var isRestoringLocation = true
 
     override init() {
         super.init()
         locationManager.delegate = self
-        
-        if UserDefaults.standard.object(forKey: DefaultsKeys.latitude) != nil,
-           UserDefaults.standard.object(forKey: DefaultsKeys.longitude) != nil {
-            let lat = UserDefaults.standard.double(forKey: DefaultsKeys.latitude)
-            let lon = UserDefaults.standard.double(forKey: DefaultsKeys.longitude)
+
+        let defaults = UserDefaults.standard
+        if let storedCityName = defaults.string(forKey: DefaultsKeys.cityName) {
+            cityName = storedCityName
+        }
+
+        if let storedRegion = defaults.string(forKey: DefaultsKeys.selectedRegion),
+           WorldCities[storedRegion] != nil {
+            selectedRegion = storedRegion
+        }
+        if let storedCountry = defaults.string(forKey: DefaultsKeys.selectedCountry),
+           WorldCities[selectedRegion]?[storedCountry] != nil {
+            selectedCountry = storedCountry
+        }
+        if let storedCity = defaults.string(forKey: DefaultsKeys.selectedCity),
+           WorldCities[selectedRegion]?[selectedCountry]?.cities.contains(storedCity) == true {
+            selectedCity = storedCity
+        }
+
+        if defaults.object(forKey: DefaultsKeys.latitude) != nil,
+           defaults.object(forKey: DefaultsKeys.longitude) != nil {
+            let lat = defaults.double(forKey: DefaultsKeys.latitude)
+            let lon = defaults.double(forKey: DefaultsKeys.longitude)
             self.latitude = lat
             self.longitude = lon
         }
-        
+
+        if let storedMode = defaults.string(forKey: DefaultsKeys.locationMode),
+           let mode = LocationMode(rawValue: storedMode) {
+            locationMode = mode
+        }
+        isRestoringLocation = false
+
         scheduleAutoRefresh()
         
         cityNameCancellable = $cityName
