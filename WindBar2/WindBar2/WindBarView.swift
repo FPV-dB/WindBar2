@@ -21,6 +21,11 @@ import AppKit
 struct WindBarView: View {
 
     @EnvironmentObject var manager: WeatherManager
+    @ObservedObject var droneStatus: DroneWindStatusManager
+    @AppStorage(DroneWindStatusManager.selectedProfileKey) private var selectedAircraftProfile = AircraftProfileID.djiNeo2.rawValue
+    @AppStorage(DroneWindStatusManager.customNameKey) private var customAircraftName = "Custom Drone"
+    @AppStorage(DroneWindStatusManager.customMaxWindKey) private var customMaxWindKmh = 20.0
+    @AppStorage(DroneWindStatusManager.customMaxGustKey) private var customMaxGustKmh = 25.0
     @State private var showRecommendations = false
     @State private var showPopularPilots = false
 
@@ -52,6 +57,12 @@ struct WindBarView: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            flightConditionsSection
+
+            Divider().padding(.vertical, 4)
+
+            aircraftProfileSection
 
             // CURRENT WIND + ALERT STATUS
             if manager.isLoading {
@@ -335,6 +346,91 @@ struct WindBarView: View {
             .padding(12)
         }
         .frame(width: manager.layout.width)
+        .onAppear(perform: syncDroneSettings)
+        .onChange(of: selectedAircraftProfile) { _, _ in syncDroneSettings() }
+        .onChange(of: customAircraftName) { _, _ in syncDroneSettings() }
+        .onChange(of: customMaxWindKmh) { _, _ in syncDroneSettings() }
+        .onChange(of: customMaxGustKmh) { _, _ in syncDroneSettings() }
+    }
+
+    private var flightConditionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Current Flight Conditions", systemImage: "drone.fill")
+                .font(.headline)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
+                conditionRow("Aircraft", droneStatus.selectedProfile.name)
+                conditionRow("Wind", droneStatus.currentWindKmh.map { "\(Int($0.rounded())) km/h" } ?? "Waiting")
+                conditionRow("Gusts", droneStatus.currentGustKmh.map { "\(Int($0.rounded())) km/h" } ?? "Waiting")
+                conditionRow("Status", droneStatus.condition?.label ?? "WAITING")
+                conditionRow("Reason", droneStatus.reason)
+            }
+        }
+    }
+
+    private var aircraftProfileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Selected Aircraft Profile")
+                .font(.headline)
+
+            Picker("Aircraft", selection: $selectedAircraftProfile) {
+                ForEach(AircraftProfileID.allCases) { profile in
+                    Text(profile.displayName).tag(profile.rawValue)
+                }
+            }
+
+            if selectedAircraftProfile == AircraftProfileID.custom.rawValue {
+                TextField("Aircraft name", text: $customAircraftName)
+                HStack {
+                    Text("Maximum wind")
+                    Spacer()
+                    TextField("km/h", value: $customMaxWindKmh, format: .number)
+                        .frame(width: 70)
+                    Text("km/h")
+                }
+                HStack {
+                    Text("Maximum gust")
+                    Spacer()
+                    TextField("km/h", value: $customMaxGustKmh, format: .number)
+                        .frame(width: 70)
+                    Text("km/h")
+                }
+            } else {
+                Text("Limits: \(Int(droneStatus.selectedProfile.maxWindKmh)) km/h wind, \(Int(droneStatus.selectedProfile.maxGustKmh)) km/h gusts")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func conditionRow(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label + ":")
+                .foregroundStyle(.secondary)
+            Text(value)
+                .fontWeight(label == "Status" ? .semibold : .regular)
+                .foregroundStyle(label == "Status" ? flightConditionColor : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var flightConditionColor: Color {
+        switch droneStatus.condition {
+        case .good: return .green
+        case .caution: return .yellow
+        case .warning: return .orange
+        case .alert: return .red
+        case nil: return .secondary
+        }
+    }
+
+    private func syncDroneSettings() {
+        droneStatus.configure(
+            profileID: selectedAircraftProfile,
+            customName: customAircraftName,
+            customMaxWindKmh: customMaxWindKmh,
+            customMaxGustKmh: customMaxGustKmh
+        )
     }
 
     // MARK: - Alert Components
@@ -516,7 +612,7 @@ struct PopularPilotsPopover: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 Link(destination: URL(string: "https://www.youtube.com/@Kenheron")!) {
-                    Text("Ken Heron - Funny expert pilot — Part 107")
+                    Text("Ken Heron")
                         .font(.headline)
                         .fontWeight(.semibold)
                 }

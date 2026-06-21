@@ -29,12 +29,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         
-        button.title = "💨 WindBar"
+        button.image = DroneMenuBarIcon.image(for: nil)
+        button.imagePosition = .imageLeading
+        button.title = "WindBar"
         button.target = self
         button.action = #selector(togglePopover)
 
         // Create SwiftUI popover view
-        let view = WindBarView().environmentObject(weatherManager)
+        let view = WindBarView(droneStatus: weatherManager.droneWindStatus)
+            .environmentObject(weatherManager)
         let hosting = NSHostingController(rootView: view)
 
         let pop = NSPopover()
@@ -44,11 +47,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover = pop
 
         // Update status bar when wind changes
-        weatherManager.$windSpeedDisplayed
+        Publishers.CombineLatest(
+            weatherManager.$windSpeedDisplayed,
+            weatherManager.droneWindStatus.$condition
+        )
             .receive(on: RunLoop.main)
-            .sink { [weak self] text in
+            .sink { [weak self] text, condition in
                 guard let button = self?.statusItem?.button else { return }
                 button.title = text ?? "—"
+                button.image = DroneMenuBarIcon.image(for: condition)
+                button.toolTip = condition.map { "\($0.label) flying conditions" } ?? "Waiting for wind data"
             }
             .store(in: &cancellables)
 

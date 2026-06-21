@@ -96,6 +96,7 @@ enum WindAlertState {
 @MainActor
 final class WeatherManager: NSObject, ObservableObject {
     private static let forecastHourCount = 24
+    let droneWindStatus = DroneWindStatusManager()
     
     private enum DefaultsKeys {
         static let latitude = "lastLatitude"
@@ -262,6 +263,7 @@ final class WeatherManager: NSObject, ObservableObject {
         uvIndex = 5.5
         pressureHPa = 1013
         lastUpdated = Date()
+        droneWindStatus.update(windKmh: windSpeedKmh, gustKmh: windGustKmh)
 
         hourlyForecast = (0..<Self.forecastHourCount).map { i in
             HourlyEntry(
@@ -360,6 +362,7 @@ final class WeatherManager: NSObject, ObservableObject {
         uvIndex           = openMeteo.current.uv_index
         pressureHPa       = openMeteo.current.surface_pressure
         lastUpdated       = Date()
+        droneWindStatus.update(windKmh: windSpeedKmh, gustKmh: windGustKmh)
 
         if let h = openMeteo.hourly {
             let count = min(Self.forecastHourCount, h.time.count)
