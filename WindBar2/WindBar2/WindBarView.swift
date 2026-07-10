@@ -551,8 +551,9 @@ struct RecommendedWindPopover: View {
             Divider()
             Group {
                 Text("• DJI Avata 2 — 20-30 km/h")
-                Text("• DJI Neo 1 — 15 km/h")
+                Text("• DJI Neo 1 — 7 m/s")
                 Text("• DJI Neo 2 — 20 km/h")
+                Text("• BetaFPV Pavo 20 Pro — 10 m/s")
                 Text("• DJI Mini 3 — 35 km/h")
                 Text("• DJI Mini 4 Pro — 35 km/h")
                 Text("• DJI Air 3S — 40 km/h")

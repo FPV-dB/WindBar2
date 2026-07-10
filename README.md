@@ -8,7 +8,7 @@ WindBar2 is a lightweight macOS menu bar app for checking wind conditions before
 
 - Menu bar wind readout with direction, sustained wind, and gusts.
 - Current flight condition status for common drone profiles.
-- Aircraft presets for DJI Neo 2, DJI Avata 2, 65mm Tinywhoop, and custom limits.
+- Aircraft presets for DJI Neo 1, DJI Neo 2, BetaFPV Pavo 20 Pro, DJI Avata 2, 65mm Tinywhoop, and custom limits.
 - 24-hour wind forecast for spotting safer flight windows.
 - Location modes for city name, coordinates, or world city selection.
 - Wind units: km/h, mph, m/s, and knots.

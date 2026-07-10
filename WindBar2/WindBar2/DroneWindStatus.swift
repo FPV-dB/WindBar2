@@ -8,7 +8,9 @@ struct AircraftProfile {
 }
 
 enum AircraftProfileID: String, CaseIterable, Identifiable {
+    case djiNeo1
     case djiNeo2
+    case betaFPVPavo20Pro
     case djiAvata2
     case tinywhoop
     case custom
@@ -17,7 +19,9 @@ enum AircraftProfileID: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .djiNeo1: return "DJI Neo 1"
         case .djiNeo2: return "DJI Neo 2"
+        case .betaFPVPavo20Pro: return "BetaFPV Pavo 20 Pro"
         case .djiAvata2: return "DJI Avata 2"
         case .tinywhoop: return "65mm Tinywhoop"
         case .custom: return "Custom"
@@ -26,8 +30,12 @@ enum AircraftProfileID: String, CaseIterable, Identifiable {
 
     func profile(customName: String, customMaxWindKmh: Double, customMaxGustKmh: Double) -> AircraftProfile {
         switch self {
+        case .djiNeo1:
+            return AircraftProfile(name: displayName, maxWindKmh: 7 * 3.6, maxGustKmh: 7 * 3.6)
         case .djiNeo2:
             return AircraftProfile(name: displayName, maxWindKmh: 20, maxGustKmh: 24)
+        case .betaFPVPavo20Pro:
+            return AircraftProfile(name: displayName, maxWindKmh: 10 * 3.6, maxGustKmh: 10 * 3.6)
         case .djiAvata2:
             return AircraftProfile(name: displayName, maxWindKmh: 30, maxGustKmh: 40)
         case .tinywhoop:

@@ -38,7 +38,9 @@ WindBar2 includes these built-in profiles:
 
 | Profile | Sustained wind limit | Gust limit |
 | --- | ---: | ---: |
+| DJI Neo 1 | 7 m/s | 7 m/s |
 | DJI Neo 2 | 20 km/h | 24 km/h |
+| BetaFPV Pavo 20 Pro | 10 m/s | 10 m/s |
 | DJI Avata 2 | 30 km/h | 40 km/h |
 | 65mm Tinywhoop | 15 km/h | 20 km/h |
 | Custom | User-defined | User-defined |
