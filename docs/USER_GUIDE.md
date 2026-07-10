@@ -45,6 +45,8 @@ WindBar2 includes these built-in profiles:
 | 65mm Tinywhoop | 15 km/h | 20 km/h |
 | Custom | User-defined | User-defined |
 
+![Aircraft profile picker showing the new DJI Neo 1 and BetaFPV Pavo 20 Pro profiles](screenshots/aircraft-profiles-new-drones.png)
+
 To use custom limits:
 
 1. Choose `Custom` from the aircraft picker.
