@@ -362,6 +362,7 @@ struct WindBarView: View {
                 conditionRow("Aircraft", droneStatus.selectedProfile.name)
                 conditionRow("Wind", droneStatus.currentWindKmh.map { "\(Int($0.rounded())) km/h" } ?? "Waiting")
                 conditionRow("Gusts", droneStatus.currentGustKmh.map { "\(Int($0.rounded())) km/h" } ?? "Waiting")
+                conditionRow("Precipitation", manager.precipitationMM.map { String(format: "%.1f mm", $0) } ?? "Waiting")
                 conditionRow("Status", droneStatus.condition?.label ?? "WAITING")
                 conditionRow("Reason", droneStatus.reason)
             }

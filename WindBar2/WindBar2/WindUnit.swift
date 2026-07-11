@@ -168,6 +168,7 @@ final class WeatherManager: NSObject, ObservableObject {
     @Published var temperatureC: Double?
     @Published var uvIndex: Double?
     @Published var pressureHPa: Double?
+    @Published var precipitationMM: Double?
     @Published var isRaining: Bool = false
     @Published var lastUpdated: Date?
 
@@ -373,8 +374,8 @@ final class WeatherManager: NSObject, ObservableObject {
             comps.queryItems = [
                 URLQueryItem(name: "latitude", value: "\(finalLat)"),
                 URLQueryItem(name: "longitude", value: "\(finalLon)"),
-                URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure,precipitation,rain,showers"),
-                URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index"),
+                URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure,precipitation,rain,showers,weather_code"),
+                URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,precipitation,precipitation_probability,rain,showers,weather_code"),
                 URLQueryItem(name: "forecast_hours", value: "\(Self.forecastHourCount)"),
                 URLQueryItem(name: "timezone", value: "auto"),
                 URLQueryItem(name: "windspeed_unit", value: "kmh")
@@ -412,7 +413,13 @@ final class WeatherManager: NSObject, ObservableObject {
         temperatureC      = openMeteo.current.temperature_2m
         uvIndex           = openMeteo.current.uv_index
         pressureHPa       = openMeteo.current.surface_pressure
-        isRaining         = openMeteo.current.isRaining
+        precipitationMM   = openMeteo.current.precipitationAmount
+        if (precipitationMM ?? 0) <= 0,
+           let hourlyPrecipitation = openMeteo.hourly?.currentHourPrecipitationMM,
+           hourlyPrecipitation > 0 {
+            precipitationMM = hourlyPrecipitation
+        }
+        isRaining         = openMeteo.current.isRaining || (openMeteo.hourly?.hasNearTermRain ?? false)
         lastUpdated       = Date()
         droneWindStatus.update(windKmh: windSpeedKmh, gustKmh: windGustKmh)
 
@@ -598,9 +605,26 @@ private struct OpenMeteoResponse: Decodable {
         let precipitation: Double?
         let rain: Double?
         let showers: Double?
+        let weather_code: Int?
 
         var isRaining: Bool {
-            (rain ?? 0) > 0 || (showers ?? 0) > 0 || (precipitation ?? 0) > 0
+            (rain ?? 0) > 0 ||
+            (showers ?? 0) > 0 ||
+            (precipitation ?? 0) > 0 ||
+            Self.isRainCode(weather_code)
+        }
+
+        var precipitationAmount: Double? {
+            if let precipitation { return precipitation }
+            let combined = (rain ?? 0) + (showers ?? 0)
+            return combined > 0 ? combined : nil
+        }
+
+        private static func isRainCode(_ code: Int?) -> Bool {
+            guard let code else { return false }
+            return (51...67).contains(code) ||
+                   (80...82).contains(code) ||
+                   (95...99).contains(code)
         }
     }
     struct Hourly: Decodable {
@@ -610,6 +634,36 @@ private struct OpenMeteoResponse: Decodable {
         let wind_gusts_10m: [Double]?
         let wind_direction_10m: [Double]?
         let uv_index: [Double]?
+        let precipitation: [Double]?
+        let precipitation_probability: [Int]?
+        let rain: [Double]?
+        let showers: [Double]?
+        let weather_code: [Int]?
+
+        var currentHourPrecipitationMM: Double? {
+            precipitation?[safe: 0] ?? {
+                let combined = (rain?[safe: 0] ?? 0) + (showers?[safe: 0] ?? 0)
+                return combined > 0 ? combined : nil
+            }()
+        }
+
+        var hasNearTermRain: Bool {
+            let count = min(2, time.count)
+            return (0..<count).contains { index in
+                (rain?[safe: index] ?? 0) > 0 ||
+                (showers?[safe: index] ?? 0) > 0 ||
+                (precipitation?[safe: index] ?? 0) > 0 ||
+                (precipitation_probability?[safe: index] ?? 0) >= 70 ||
+                Self.isRainCode(weather_code?[safe: index])
+            }
+        }
+
+        private static func isRainCode(_ code: Int?) -> Bool {
+            guard let code else { return false }
+            return (51...67).contains(code) ||
+                   (80...82).contains(code) ||
+                   (95...99).contains(code)
+        }
     }
 
     let current: Current

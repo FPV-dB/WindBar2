@@ -26,7 +26,7 @@ Depending on the selected location mode, the request may be based on:
 - Latitude and longitude.
 - The selected world city.
 
-WindBar2 requests current conditions and hourly forecast data, including wind speed, gusts, wind direction, temperature, UV index, and surface pressure.
+WindBar2 requests current conditions and hourly forecast data, including wind speed, gusts, wind direction, temperature, UV index, surface pressure, precipitation, rain, showers, precipitation probability, and WMO weather codes.
 
 ## Device Location
 
@@ -34,7 +34,7 @@ The code includes support for requesting macOS location permission and a device 
 
 ## Screenshots
 
-Documentation screenshots in this repository are redacted. They do not include personal coordinates or a live private location from the maintainer's machine.
+Documentation screenshots in this repository are redacted. They do not include personal coordinates or a live private location.
 
 ## No Pilot Safety Guarantee
 

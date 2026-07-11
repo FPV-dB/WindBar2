@@ -20,13 +20,15 @@ The menu bar shows the latest wind speed and, when available, gust information. 
 - `WARNING`: wind or gusts are close to the selected limits.
 - `ALERT`: wind or gusts exceed the selected limits.
 
-When Open-Meteo reports current rain, showers, or precipitation at the selected location, the status icon switches to a rain symbol.
+When Open-Meteo reports current rain, showers, precipitation, rainy WMO weather codes, or near-term hourly rain at the selected location, the status icon switches to a rain symbol.
 
 If the app is still loading, the menu bar may show a waiting state until weather data is available.
 
 ## Current Flight Conditions
 
-The top of the popover summarizes the selected aircraft profile, current wind, gusts, condition, and reason. The reason explains whether sustained wind or gusts are driving the status.
+The top of the popover summarizes the selected aircraft profile, current wind, gusts, precipitation, condition, and reason. The reason explains whether sustained wind or gusts are driving the status.
+
+![Rain indicator and precipitation row in Current Flight Conditions](screenshots/rain-precipitation-indicator.png)
 
 Use this section as a fast pre-flight scan:
 
@@ -118,7 +120,7 @@ The aircraft profile status and the wind alert threshold are related but separat
 
 - Latitude must be between -90 and 90.
 - Longitude must be between -180 and 180.
-- Use decimal degrees, for example `-34.9285` and `138.6007`.
+- Use decimal degrees, for example `12.3456` and `123.4567`.
 
 ### The menu bar item is missing
 

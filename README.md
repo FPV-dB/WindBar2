@@ -20,9 +20,13 @@ WindBar2 is a lightweight macOS menu bar app for checking wind conditions before
 
 ## Screenshots
 
-| Overview | Forecast | Settings |
-| --- | --- | --- |
-| ![Overview screenshot](docs/screenshots/menu-overview-redacted.png) | ![Forecast screenshot](docs/screenshots/forecast-redacted.png) | ![Settings screenshot](docs/screenshots/settings-redacted.png) |
+| Overview | Forecast |
+| --- | --- |
+| ![Overview screenshot](docs/screenshots/menu-overview-redacted.png) | ![Forecast screenshot](docs/screenshots/forecast-redacted.png) |
+
+| Settings | Rain Indicator |
+| --- | --- |
+| ![Settings screenshot](docs/screenshots/settings-redacted.png) | ![Rain indicator screenshot](docs/screenshots/rain-precipitation-indicator.png) |
 
 Screenshots are redacted documentation images. Personal location text and exact coordinates are hidden.
 
@@ -77,7 +81,7 @@ See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for detailed instructions.
 
 ## Weather Data
 
-WindBar2 uses the Open-Meteo forecast API for live weather. It requests current conditions and the next 24 hours of hourly forecast data for the selected location.
+WindBar2 uses the Open-Meteo forecast API for live weather. It requests current conditions and the next 24 hours of hourly forecast data for the selected location, including wind, temperature, UV, pressure, precipitation, rain, showers, precipitation probability, and WMO weather codes.
 
 The app stores user preferences locally with `UserDefaults`, including the selected location mode, last city, coordinates, selected world city, and aircraft profile settings.
 
