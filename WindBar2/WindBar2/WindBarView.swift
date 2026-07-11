@@ -21,11 +21,17 @@ import AppKit
 struct WindBarView: View {
 
     @EnvironmentObject var manager: WeatherManager
+    @ObservedObject var droneStatus: DroneWindStatusManager
+    @AppStorage(DroneWindStatusManager.selectedProfileKey) private var selectedAircraftProfile = AircraftProfileID.djiNeo2.rawValue
+    @AppStorage(DroneWindStatusManager.customNameKey) private var customAircraftName = "Custom Drone"
+    @AppStorage(DroneWindStatusManager.customMaxWindKey) private var customMaxWindKmh = 20.0
+    @AppStorage(DroneWindStatusManager.customMaxGustKey) private var customMaxGustKmh = 25.0
     @State private var showRecommendations = false
     @State private var showPopularPilots = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
             
             HStack {
                 Spacer()
@@ -51,6 +57,12 @@ struct WindBarView: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            flightConditionsSection
+
+            Divider().padding(.vertical, 4)
+
+            aircraftProfileSection
 
             // CURRENT WIND + ALERT STATUS
             if manager.isLoading {
@@ -261,31 +273,33 @@ struct WindBarView: View {
             // HOURLY FORECAST
             if !manager.hourlyForecast.isEmpty {
                 Divider().padding(.vertical, 4)
-                Text("Next hours")
+                Text("Next 24 hours")
                     .font(.headline)
 
-                ForEach(manager.hourlyForecast) { hour in
-                    HStack {
-                        Image(systemName: "clock")
-                        Text(hour.label)
-                            .frame(width: 50, alignment: .leading)
+                LazyVStack(spacing: 8) {
+                    ForEach(manager.hourlyForecast) { hour in
+                        HStack {
+                            Image(systemName: "clock")
+                            Text(hour.label)
+                                .frame(width: 50, alignment: .leading)
 
-                        Spacer()
+                            Spacer()
 
-                        if let wsKmh = hour.windSpeed {
-                            HStack(spacing: 4) {
-                                Image(systemName: "wind")
-                                Text("\(Int(convertedWindSpeed(wsKmh)))\(unitSuffix)")
-                                
-                                if manager.alertsEnabled && wsKmh <= manager.maxWindSpeed {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption2)
+                            if let wsKmh = hour.windSpeed {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "wind")
+                                    Text("\(Int(convertedWindSpeed(wsKmh)))\(unitSuffix)")
+
+                                    if manager.alertsEnabled && wsKmh <= manager.maxWindSpeed {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                            .font(.caption2)
+                                    }
                                 }
                             }
                         }
+                        .font(.caption)
                     }
-                    .font(.caption)
                 }
             }
 
@@ -327,10 +341,97 @@ struct WindBarView: View {
                 }
             }
             
-            Spacer(minLength: 2)
+                Spacer(minLength: 2)
+            }
+            .padding(12)
         }
-        .padding(12)
         .frame(width: manager.layout.width)
+        .onAppear(perform: syncDroneSettings)
+        .onChange(of: selectedAircraftProfile) { _, _ in syncDroneSettings() }
+        .onChange(of: customAircraftName) { _, _ in syncDroneSettings() }
+        .onChange(of: customMaxWindKmh) { _, _ in syncDroneSettings() }
+        .onChange(of: customMaxGustKmh) { _, _ in syncDroneSettings() }
+    }
+
+    private var flightConditionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Current Flight Conditions", systemImage: "drone.fill")
+                .font(.headline)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
+                conditionRow("Aircraft", droneStatus.selectedProfile.name)
+                conditionRow("Wind", droneStatus.currentWindKmh.map { "\(Int($0.rounded())) km/h" } ?? "Waiting")
+                conditionRow("Gusts", droneStatus.currentGustKmh.map { "\(Int($0.rounded())) km/h" } ?? "Waiting")
+                conditionRow("Precipitation", manager.precipitationMM.map { String(format: "%.1f mm", $0) } ?? "Waiting")
+                conditionRow("Status", droneStatus.condition?.label ?? "WAITING")
+                conditionRow("Reason", droneStatus.reason)
+            }
+        }
+    }
+
+    private var aircraftProfileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Selected Aircraft Profile")
+                .font(.headline)
+
+            Picker("Aircraft", selection: $selectedAircraftProfile) {
+                ForEach(AircraftProfileID.allCases) { profile in
+                    Text(profile.displayName).tag(profile.rawValue)
+                }
+            }
+
+            if selectedAircraftProfile == AircraftProfileID.custom.rawValue {
+                TextField("Aircraft name", text: $customAircraftName)
+                HStack {
+                    Text("Maximum wind")
+                    Spacer()
+                    TextField("km/h", value: $customMaxWindKmh, format: .number)
+                        .frame(width: 70)
+                    Text("km/h")
+                }
+                HStack {
+                    Text("Maximum gust")
+                    Spacer()
+                    TextField("km/h", value: $customMaxGustKmh, format: .number)
+                        .frame(width: 70)
+                    Text("km/h")
+                }
+            } else {
+                Text("Limits: \(Int(droneStatus.selectedProfile.maxWindKmh)) km/h wind, \(Int(droneStatus.selectedProfile.maxGustKmh)) km/h gusts")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func conditionRow(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label + ":")
+                .foregroundStyle(.secondary)
+            Text(value)
+                .fontWeight(label == "Status" ? .semibold : .regular)
+                .foregroundStyle(label == "Status" ? flightConditionColor : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var flightConditionColor: Color {
+        switch droneStatus.condition {
+        case .good: return .green
+        case .caution: return .yellow
+        case .warning: return .orange
+        case .alert: return .red
+        case nil: return .secondary
+        }
+    }
+
+    private func syncDroneSettings() {
+        droneStatus.configure(
+            profileID: selectedAircraftProfile,
+            customName: customAircraftName,
+            customMaxWindKmh: customMaxWindKmh,
+            customMaxGustKmh: customMaxGustKmh
+        )
     }
 
     // MARK: - Alert Components
@@ -451,8 +552,9 @@ struct RecommendedWindPopover: View {
             Divider()
             Group {
                 Text("• DJI Avata 2 — 20-30 km/h")
-                Text("• DJI Neo 1 — 15 km/h")
+                Text("• DJI Neo 1 — 7 m/s")
                 Text("• DJI Neo 2 — 20 km/h")
+                Text("• BetaFPV Pavo 20 Pro — 10 m/s")
                 Text("• DJI Mini 3 — 35 km/h")
                 Text("• DJI Mini 4 Pro — 35 km/h")
                 Text("• DJI Air 3S — 40 km/h")
@@ -512,7 +614,7 @@ struct PopularPilotsPopover: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 Link(destination: URL(string: "https://www.youtube.com/@Kenheron")!) {
-                    Text("Ken Heron - Funny expert pilot — Part 107")
+                    Text("Ken Heron")
                         .font(.headline)
                         .fontWeight(.semibold)
                 }

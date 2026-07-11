@@ -95,19 +95,37 @@ enum WindAlertState {
 
 @MainActor
 final class WeatherManager: NSObject, ObservableObject {
+    private static let forecastHourCount = 24
+    let droneWindStatus = DroneWindStatusManager()
     
     private enum DefaultsKeys {
+        static let locationMode = "lastLocationMode"
+        static let cityName = "lastCityName"
         static let latitude = "lastLatitude"
         static let longitude = "lastLongitude"
+        static let selectedRegion = "lastSelectedRegion"
+        static let selectedCountry = "lastSelectedCountry"
+        static let selectedCity = "lastSelectedCity"
     }
 
     @Published var useDummyData: Bool = false { didSet { refresh() } }
     @Published var windUnit: WindUnit = .kmh { didSet { refresh() } }
     @Published var temperatureUnit: TemperatureUnit = .celsius
-    @Published var locationMode: LocationMode = .cityName { didSet { refresh() } }
+    @Published var locationMode: LocationMode = .cityName {
+        didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(locationMode.rawValue, forKey: DefaultsKeys.locationMode)
+            refresh()
+        }
+    }
     @Published var layout: LayoutWidth = .compact
 
-    @Published var cityName: String = "Adelaide"
+    @Published var cityName: String = "Adelaide" {
+        didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(cityName, forKey: DefaultsKeys.cityName)
+        }
+    }
 
     @Published var latitude: Double? {
         didSet { persistCoordinatesIfNeeded() }
@@ -118,6 +136,8 @@ final class WeatherManager: NSObject, ObservableObject {
 
     @Published var selectedRegion: String = "Oceania" {
         didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(selectedRegion, forKey: DefaultsKeys.selectedRegion)
             if let first = WorldCities[selectedRegion]?.keys.sorted().first {
                 selectedCountry = first
             }
@@ -126,6 +146,8 @@ final class WeatherManager: NSObject, ObservableObject {
 
     @Published var selectedCountry: String = "Australia" {
         didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(selectedCountry, forKey: DefaultsKeys.selectedCountry)
             if let cities = WorldCities[selectedRegion]?[selectedCountry]?.cities,
                let firstCity = cities.first {
                 selectedCity = firstCity
@@ -133,7 +155,12 @@ final class WeatherManager: NSObject, ObservableObject {
         }
     }
 
-    @Published var selectedCity: String = "Adelaide"
+    @Published var selectedCity: String = "Adelaide" {
+        didSet {
+            guard !isRestoringLocation else { return }
+            UserDefaults.standard.set(selectedCity, forKey: DefaultsKeys.selectedCity)
+        }
+    }
 
     @Published var windSpeedKmh: Double?
     @Published var windGustKmh: Double?
@@ -141,6 +168,8 @@ final class WeatherManager: NSObject, ObservableObject {
     @Published var temperatureC: Double?
     @Published var uvIndex: Double?
     @Published var pressureHPa: Double?
+    @Published var precipitationMM: Double?
+    @Published var isRaining: Bool = false
     @Published var lastUpdated: Date?
 
     @Published var isLoading: Bool = false
@@ -181,19 +210,44 @@ final class WeatherManager: NSObject, ObservableObject {
     private let urlSession = URLSession(configuration: .default)
     private var refreshTimer: AnyCancellable?
     private var cityNameCancellable: AnyCancellable?
+    private var isRestoringLocation = true
 
     override init() {
         super.init()
         locationManager.delegate = self
-        
-        if UserDefaults.standard.object(forKey: DefaultsKeys.latitude) != nil,
-           UserDefaults.standard.object(forKey: DefaultsKeys.longitude) != nil {
-            let lat = UserDefaults.standard.double(forKey: DefaultsKeys.latitude)
-            let lon = UserDefaults.standard.double(forKey: DefaultsKeys.longitude)
+
+        let defaults = UserDefaults.standard
+        if let storedCityName = defaults.string(forKey: DefaultsKeys.cityName) {
+            cityName = storedCityName
+        }
+
+        if let storedRegion = defaults.string(forKey: DefaultsKeys.selectedRegion),
+           WorldCities[storedRegion] != nil {
+            selectedRegion = storedRegion
+        }
+        if let storedCountry = defaults.string(forKey: DefaultsKeys.selectedCountry),
+           WorldCities[selectedRegion]?[storedCountry] != nil {
+            selectedCountry = storedCountry
+        }
+        if let storedCity = defaults.string(forKey: DefaultsKeys.selectedCity),
+           WorldCities[selectedRegion]?[selectedCountry]?.cities.contains(storedCity) == true {
+            selectedCity = storedCity
+        }
+
+        if defaults.object(forKey: DefaultsKeys.latitude) != nil,
+           defaults.object(forKey: DefaultsKeys.longitude) != nil {
+            let lat = defaults.double(forKey: DefaultsKeys.latitude)
+            let lon = defaults.double(forKey: DefaultsKeys.longitude)
             self.latitude = lat
             self.longitude = lon
         }
-        
+
+        if let storedMode = defaults.string(forKey: DefaultsKeys.locationMode),
+           let mode = LocationMode(rawValue: storedMode) {
+            locationMode = mode
+        }
+        isRestoringLocation = false
+
         scheduleAutoRefresh()
         
         cityNameCancellable = $cityName
@@ -261,8 +315,9 @@ final class WeatherManager: NSObject, ObservableObject {
         uvIndex = 5.5
         pressureHPa = 1013
         lastUpdated = Date()
+        droneWindStatus.update(windKmh: windSpeedKmh, gustKmh: windGustKmh)
 
-        hourlyForecast = (0..<6).map { i in
+        hourlyForecast = (0..<Self.forecastHourCount).map { i in
             HourlyEntry(
                 label: "\(String(format: "%02d", (Calendar.current.component(.hour, from: .now) + i) % 24)):00",
                 tempC: 23 + Double(i),
@@ -315,14 +370,13 @@ final class WeatherManager: NSObject, ObservableObject {
                 return
             }
 
-            // OPTIMIZED: Fetch only 6 hours instead of full day (forecast_hours parameter)
             var comps = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
             comps.queryItems = [
                 URLQueryItem(name: "latitude", value: "\(finalLat)"),
                 URLQueryItem(name: "longitude", value: "\(finalLon)"),
-                URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure"),
-                URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index"),
-                URLQueryItem(name: "forecast_hours", value: "6"),  // OPTIMIZED: Only 6 hours
+                URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure,precipitation,rain,showers,weather_code"),
+                URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,precipitation,precipitation_probability,rain,showers,weather_code"),
+                URLQueryItem(name: "forecast_hours", value: "\(Self.forecastHourCount)"),
                 URLQueryItem(name: "timezone", value: "auto"),
                 URLQueryItem(name: "windspeed_unit", value: "kmh")
             ]
@@ -359,10 +413,18 @@ final class WeatherManager: NSObject, ObservableObject {
         temperatureC      = openMeteo.current.temperature_2m
         uvIndex           = openMeteo.current.uv_index
         pressureHPa       = openMeteo.current.surface_pressure
+        precipitationMM   = openMeteo.current.precipitationAmount
+        if (precipitationMM ?? 0) <= 0,
+           let hourlyPrecipitation = openMeteo.hourly?.currentHourPrecipitationMM,
+           hourlyPrecipitation > 0 {
+            precipitationMM = hourlyPrecipitation
+        }
+        isRaining         = openMeteo.current.isRaining || (openMeteo.hourly?.hasNearTermRain ?? false)
         lastUpdated       = Date()
+        droneWindStatus.update(windKmh: windSpeedKmh, gustKmh: windGustKmh)
 
         if let h = openMeteo.hourly {
-            let count = min(6, h.time.count)
+            let count = min(Self.forecastHourCount, h.time.count)
 
             hourlyForecast = (0..<count).map { i -> HourlyEntry in
                 let raw = h.time[i]
@@ -540,6 +602,30 @@ private struct OpenMeteoResponse: Decodable {
         let wind_direction_10m: Double?
         let uv_index: Double?
         let surface_pressure: Double?
+        let precipitation: Double?
+        let rain: Double?
+        let showers: Double?
+        let weather_code: Int?
+
+        var isRaining: Bool {
+            (rain ?? 0) > 0 ||
+            (showers ?? 0) > 0 ||
+            (precipitation ?? 0) > 0 ||
+            Self.isRainCode(weather_code)
+        }
+
+        var precipitationAmount: Double? {
+            if let precipitation { return precipitation }
+            let combined = (rain ?? 0) + (showers ?? 0)
+            return combined > 0 ? combined : nil
+        }
+
+        private static func isRainCode(_ code: Int?) -> Bool {
+            guard let code else { return false }
+            return (51...67).contains(code) ||
+                   (80...82).contains(code) ||
+                   (95...99).contains(code)
+        }
     }
     struct Hourly: Decodable {
         let time: [String]
@@ -548,6 +634,36 @@ private struct OpenMeteoResponse: Decodable {
         let wind_gusts_10m: [Double]?
         let wind_direction_10m: [Double]?
         let uv_index: [Double]?
+        let precipitation: [Double]?
+        let precipitation_probability: [Int]?
+        let rain: [Double]?
+        let showers: [Double]?
+        let weather_code: [Int]?
+
+        var currentHourPrecipitationMM: Double? {
+            precipitation?[safe: 0] ?? {
+                let combined = (rain?[safe: 0] ?? 0) + (showers?[safe: 0] ?? 0)
+                return combined > 0 ? combined : nil
+            }()
+        }
+
+        var hasNearTermRain: Bool {
+            let count = min(2, time.count)
+            return (0..<count).contains { index in
+                (rain?[safe: index] ?? 0) > 0 ||
+                (showers?[safe: index] ?? 0) > 0 ||
+                (precipitation?[safe: index] ?? 0) > 0 ||
+                (precipitation_probability?[safe: index] ?? 0) >= 70 ||
+                Self.isRainCode(weather_code?[safe: index])
+            }
+        }
+
+        private static func isRainCode(_ code: Int?) -> Bool {
+            guard let code else { return false }
+            return (51...67).contains(code) ||
+                   (80...82).contains(code) ||
+                   (95...99).contains(code)
+        }
     }
 
     let current: Current
