@@ -20,6 +20,8 @@ The menu bar shows the latest wind speed and, when available, gust information. 
 - `WARNING`: wind or gusts are close to the selected limits.
 - `ALERT`: wind or gusts exceed the selected limits.
 
+When Open-Meteo reports current rain, showers, or precipitation at the selected location, the status icon switches to a rain symbol.
+
 If the app is still loading, the menu bar may show a waiting state until weather data is available.
 
 ## Current Flight Conditions

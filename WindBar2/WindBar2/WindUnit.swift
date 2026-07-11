@@ -168,6 +168,7 @@ final class WeatherManager: NSObject, ObservableObject {
     @Published var temperatureC: Double?
     @Published var uvIndex: Double?
     @Published var pressureHPa: Double?
+    @Published var isRaining: Bool = false
     @Published var lastUpdated: Date?
 
     @Published var isLoading: Bool = false
@@ -372,7 +373,7 @@ final class WeatherManager: NSObject, ObservableObject {
             comps.queryItems = [
                 URLQueryItem(name: "latitude", value: "\(finalLat)"),
                 URLQueryItem(name: "longitude", value: "\(finalLon)"),
-                URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure"),
+                URLQueryItem(name: "current", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,surface_pressure,precipitation,rain,showers"),
                 URLQueryItem(name: "hourly", value: "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index"),
                 URLQueryItem(name: "forecast_hours", value: "\(Self.forecastHourCount)"),
                 URLQueryItem(name: "timezone", value: "auto"),
@@ -411,6 +412,7 @@ final class WeatherManager: NSObject, ObservableObject {
         temperatureC      = openMeteo.current.temperature_2m
         uvIndex           = openMeteo.current.uv_index
         pressureHPa       = openMeteo.current.surface_pressure
+        isRaining         = openMeteo.current.isRaining
         lastUpdated       = Date()
         droneWindStatus.update(windKmh: windSpeedKmh, gustKmh: windGustKmh)
 
@@ -593,6 +595,13 @@ private struct OpenMeteoResponse: Decodable {
         let wind_direction_10m: Double?
         let uv_index: Double?
         let surface_pressure: Double?
+        let precipitation: Double?
+        let rain: Double?
+        let showers: Double?
+
+        var isRaining: Bool {
+            (rain ?? 0) > 0 || (showers ?? 0) > 0 || (precipitation ?? 0) > 0
+        }
     }
     struct Hourly: Decodable {
         let time: [String]

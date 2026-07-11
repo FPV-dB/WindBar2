@@ -193,9 +193,9 @@ final class DroneWindStatusManager: ObservableObject {
 }
 
 enum DroneMenuBarIcon {
-    static func image(for condition: FlightCondition?) -> NSImage {
+    static func image(for condition: FlightCondition?, isRaining: Bool = false) -> NSImage {
         let statusSymbol = condition?.statusSymbolName ?? "questionmark.circle"
-        let symbolNames = ["drone.fill", statusSymbol]
+        let symbolNames = ["drone.fill", isRaining ? "cloud.rain.fill" : statusSymbol]
         let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
         let symbols = symbolNames.compactMap { name in
             (NSImage(systemSymbolName: name, accessibilityDescription: nil)

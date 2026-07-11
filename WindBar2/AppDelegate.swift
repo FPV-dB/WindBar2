@@ -47,16 +47,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover = pop
 
         // Update status bar when wind changes
-        Publishers.CombineLatest(
+        Publishers.CombineLatest3(
             weatherManager.$windSpeedDisplayed,
-            weatherManager.droneWindStatus.$condition
+            weatherManager.droneWindStatus.$condition,
+            weatherManager.$isRaining
         )
             .receive(on: RunLoop.main)
-            .sink { [weak self] text, condition in
+            .sink { [weak self] text, condition, isRaining in
                 guard let button = self?.statusItem?.button else { return }
                 button.title = text ?? "—"
-                button.image = DroneMenuBarIcon.image(for: condition)
-                button.toolTip = condition.map { "\($0.label) flying conditions" } ?? "Waiting for wind data"
+                button.image = DroneMenuBarIcon.image(for: condition, isRaining: isRaining)
+                let conditionText = condition.map { "\($0.label) flying conditions" } ?? "Waiting for wind data"
+                button.toolTip = isRaining ? "\(conditionText) - rain at selected location" : conditionText
             }
             .store(in: &cancellables)
 

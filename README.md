@@ -7,6 +7,7 @@ WindBar2 is a lightweight macOS menu bar app for checking wind conditions before
 ## Highlights
 
 - Menu bar wind readout with direction, sustained wind, and gusts.
+- Rain-aware menu bar icon when current conditions report rain, showers, or precipitation.
 - Current flight condition status for common drone profiles.
 - Aircraft presets for DJI Neo 1, DJI Neo 2, BetaFPV Pavo 20 Pro, DJI Avata 2, 65mm Tinywhoop, and custom limits.
 - 24-hour wind forecast for spotting safer flight windows.
